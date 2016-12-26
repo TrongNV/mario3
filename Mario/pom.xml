@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>nhb</groupId>
 	<artifactId>mario</artifactId>
-	<version>3.10.1</version>
+	<version>3.10.4</version>
 	<properties>
 		<project.name>${project.artifactId}</project.name>
 		<project.dir>${project.name}-${project.version}</project.dir>
@@ -107,13 +107,14 @@
 							<target>
 								<sshexec host="${remote.host}" username="${remote.user}"
 									password="${remote.password}" trust="true"
-									command="cd ~; mkdir -p ~/${project.name}s/${project.dir}" />
-								<scp trust="true"
+									command="cd ~; mkdir -p ~/${project.name}s/${project.dir}"
+									failonerror="false" />
+								<scp failonerror="false" trust="true"
 									todir="${remote.user}:${remote.password}@${remote.host}:~/${project.name}s/${project.dir}">
 									<fileset dir="${project.build.directory}/${project.dir}" />
 								</scp>
-								<sshexec host="${remote.host}" username="${remote.user}"
-									password="${remote.password}" trust="true"
+								<sshexec failonerror="false" host="${remote.host}"
+									username="${remote.user}" password="${remote.password}" trust="true"
 									command="ln -sfn ~/${project.name}s/${project.dir} ~/${project.name}; cd ~/${project.name}; chmod +x *.sh; mkdir -p extensions; mkdir -p extensions/__lib__" />
 							</target>
 						</configuration>
@@ -216,7 +217,7 @@
 		<dependency>
 			<groupId>nhb.common</groupId>
 			<artifactId>nhb-common-messaging</artifactId>
-			<version>1.0.0</version>
+			<version>1.0.2</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.slf4j</groupId>
@@ -245,7 +246,7 @@
 		<dependency>
 			<groupId>nhb.common</groupId>
 			<artifactId>nhb-common-db</artifactId>
-			<version>1.0.0</version>
+			<version>1.0.1</version>
 			<exclusions>
 				<exclusion>
 					<groupId>io.netty</groupId>
@@ -268,6 +269,13 @@
 					<artifactId>netty-transport</artifactId>
 				</exclusion>
 			</exclusions>
+		</dependency>
+		
+		<!-- https://mvnrepository.com/artifact/org.projectlombok/lombok -->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>1.16.12</version>
 		</dependency>
 	</dependencies>
 
