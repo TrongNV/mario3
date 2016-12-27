@@ -277,6 +277,21 @@
 			<artifactId>lombok</artifactId>
 			<version>1.16.12</version>
 		</dependency>
+		<dependency>
+			<groupId>nhb.common</groupId>
+			<artifactId>nhb-common-encryption</artifactId>
+			<version>1.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>nhb.common</groupId>
+			<artifactId>nhb-common-scripting</artifactId>
+			<version>1.0.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.codehaus.groovy</groupId>
+			<artifactId>groovy-all</artifactId>
+			<version>2.4.7</version>
+		</dependency>
 	</dependencies>
 
 	<distributionManagement>
