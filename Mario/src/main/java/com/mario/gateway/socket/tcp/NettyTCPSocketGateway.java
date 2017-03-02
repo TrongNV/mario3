@@ -12,11 +12,13 @@ import com.mario.gateway.socket.SocketReceiver;
 import com.mario.gateway.socket.SocketSession;
 import com.mario.worker.MessageEventFactory;
 import com.nhb.messaging.socket.netty.codec.MsgpackDecoder;
+import com.nhb.messaging.socket.netty.codec.MsgpackDecoder2;
 import com.nhb.messaging.socket.netty.codec.MsgpackEncoder;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
@@ -61,6 +63,7 @@ public class NettyTCPSocketGateway extends BaseSocketGateway implements SocketRe
 		workerGroup = new NioEventLoopGroup(config.getWorkerEventLoopGroupThreads());
 
 		bootstrap = new ServerBootstrap();
+		bootstrap.option(ChannelOption.TCP_NODELAY, true);
 		bootstrap.group(bossGroup, workerGroup);
 		bootstrap.channel(NioServerSocketChannel.class);
 		bootstrap.handler(new LoggingHandler(LogLevel.DEBUG));
@@ -72,7 +75,9 @@ public class NettyTCPSocketGateway extends BaseSocketGateway implements SocketRe
 					ch.pipeline().addLast("frameEncoder", new LengthFieldPrepender(4));
 					ch.pipeline().addLast("frameDecoder", new LengthFieldBasedFrameDecoder(1048576, 0, 4, 0, 4));
 				}
-				ch.pipeline().addLast("msgpackEncoder", MsgpackEncoder.newInstance());
+				ch.pipeline().addLast("msgpackEncoder",
+						System.getProperty("socket.msgpack.decoder.version", "1").equals("2")
+								? MsgpackDecoder2.newInstance() : MsgpackEncoder.newInstance());
 				ch.pipeline().addLast("msgpackDecoder", MsgpackDecoder.newInstance());
 				ch.pipeline()
 						.addLast(new NettyTCPSocketSession(ch.remoteAddress(),
