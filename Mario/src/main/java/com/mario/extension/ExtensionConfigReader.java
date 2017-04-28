@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -33,6 +34,7 @@ import com.mario.config.MessageProducerConfig;
 import com.mario.config.MonitorAgentConfig;
 import com.mario.config.RabbitMQProducerConfig;
 import com.mario.config.RedisConfig;
+import com.mario.config.SSLContextConfig;
 import com.mario.config.WorkerPoolConfig;
 import com.mario.config.ZkClientConfig;
 import com.mario.config.gateway.GatewayConfig;
@@ -41,6 +43,7 @@ import com.mario.config.gateway.HttpGatewayConfig;
 import com.mario.config.gateway.KafkaGatewayConfig;
 import com.mario.config.gateway.RabbitMQGatewayConfig;
 import com.mario.config.gateway.SocketGatewayConfig;
+import com.mario.config.gateway.WebsocketGatewayConfig;
 import com.mario.config.serverwrapper.HttpServerWrapperConfig;
 import com.mario.config.serverwrapper.RabbitMQServerWrapperConfig;
 import com.mario.config.serverwrapper.ServerWrapperConfig;
@@ -79,6 +82,8 @@ class ExtensionConfigReader extends XmlConfigReader {
 	private List<MonitorAgentConfig> monitorAgentConfigs;
 	private List<MessageProducerConfig> producerConfigs;
 
+	private List<SSLContextConfig> sslContextConfigs;
+
 	private final Map<String, PuObjectRO> properties = new HashMap<>();
 
 	private List<ZkClientConfig> zkClientConfigs;
@@ -104,6 +109,15 @@ class ExtensionConfigReader extends XmlConfigReader {
 		try {
 			System.out.println("\t\t\t- Reading properties");
 			this.readProperties((Node) xPath.compile("/mario/properties").evaluate(document, XPathConstants.NODE));
+		} catch (Exception ex) {
+			if (!(ex instanceof TransformerException) && !(ex instanceof XPathExpressionException)) {
+				getLogger().error("Error", ex);
+			}
+		}
+
+		try {
+			System.out.println("\t\t\t- Reading SSL Context Config");
+			this.readSSLContextConfigs((Node) xPath.compile("/mario/ssl").evaluate(document, XPathConstants.NODE));
 		} catch (Exception ex) {
 			if (!(ex instanceof TransformerException) && !(ex instanceof XPathExpressionException)) {
 				getLogger().error("Error", ex);
@@ -179,6 +193,61 @@ class ExtensionConfigReader extends XmlConfigReader {
 		}
 
 		System.out.println("\t\t\t- *** Reading configs done ***");
+	}
+
+	private SSLContextConfig _readSSLContextConfig(Node node) {
+		if (node != null) {
+			Node curr = node.getFirstChild();
+			SSLContextConfig result = new SSLContextConfig();
+			result.setExtensionName(extensionName);
+			while (curr != null) {
+				if (curr.getNodeType() == Node.ELEMENT_NODE) {
+					String nodeName = curr.getNodeName();
+					String nodeValue = curr.getTextContent().trim();
+					switch (nodeName.toLowerCase()) {
+					case "name":
+						result.setName(nodeValue);
+						break;
+					case "format":
+						result.setFormat(nodeValue);
+						break;
+					case "protocol":
+						result.setProtocol(nodeValue);
+						break;
+					case "algorithm":
+						result.setAlgorithm(nodeValue);
+						break;
+					case "filepath":
+						result.setFilePath(nodeValue);
+						break;
+					case "password":
+						result.setPassword(nodeValue);
+						break;
+					}
+				}
+				curr = curr.getNextSibling();
+			}
+			return result;
+		}
+		return null;
+	}
+
+	private void readSSLContextConfigs(Node evaluate) {
+		this.sslContextConfigs = new LinkedList<>();
+		if (evaluate == null) {
+			return;
+		}
+		Node curr = evaluate.getFirstChild();
+		while (curr != null) {
+			if (curr.getNodeType() == Node.ELEMENT_NODE) {
+				if (curr.getNodeName().equals("context")) {
+					sslContextConfigs.add(this._readSSLContextConfig(curr));
+				} else {
+					throw new Error("ssl context config must under path /mario/ssl/context");
+				}
+			}
+			curr = curr.getNextSibling();
+		}
 	}
 
 	private String extractNodeContent(Node node) {
@@ -645,6 +714,10 @@ class ExtensionConfigReader extends XmlConfigReader {
 								}
 							} else if (nodeName.equalsIgnoreCase("pollTimeout")) {
 								kafkaGatewayConfig.setPollTimeout(Integer.valueOf(value));
+							} else if (nodeName.equalsIgnoreCase("minBatchingSize")) {
+								kafkaGatewayConfig.setMinBatchingSize(Integer.valueOf(value));
+							} else if (nodeName.equalsIgnoreCase("maxRetentionTime")) {
+								kafkaGatewayConfig.setMaxRetentionTime(Long.valueOf(value));
 							}
 						}
 						ele = ele.getNextSibling();
@@ -732,7 +805,67 @@ class ExtensionConfigReader extends XmlConfigReader {
 					break;
 				}
 				case SOCKET: {
-					SocketGatewayConfig socketGatewayConfig = new SocketGatewayConfig();
+					ele = item.getFirstChild();
+					SocketProtocol protocol = null;
+					String host = null;
+					int port = -1;
+					String path = null;
+					String proxy = null;
+					String deserializer = null;
+					String serializer = null;
+					boolean ssl = false;
+					String sslContextName = null;
+					String name = null;
+					WorkerPoolConfig workerPoolConfig = null;
+					boolean isUserLengprepender = false;
+					int bootGroupThreads = -1;
+					int workerGroupThreads = -1;
+					while (ele != null) {
+						if (ele.getNodeType() == 1) {
+							String nodeName = ele.getNodeName();
+							String value = ele.getTextContent().trim();
+							if (nodeName.equalsIgnoreCase("protocol")) {
+								protocol = SocketProtocol.fromName(value);
+							} else if (nodeName.equalsIgnoreCase("host")) {
+								host = value;
+							} else if (nodeName.equalsIgnoreCase("port")) {
+								port = Integer.valueOf(value);
+							} else if (nodeName.equalsIgnoreCase("path")) {
+								path = value;
+							} else if (nodeName.equalsIgnoreCase("proxy")) {
+								proxy = value;
+							} else if (nodeName.equalsIgnoreCase("deserializer")) {
+								deserializer = value;
+							} else if (nodeName.equalsIgnoreCase("serializer")) {
+								serializer = value;
+							} else if (nodeName.equalsIgnoreCase("ssl")) {
+								ssl = Boolean.valueOf(value);
+							} else if (nodeName.equalsIgnoreCase("sslcontextname")) {
+								sslContextName = value;
+							} else if (nodeName.equalsIgnoreCase("name")) {
+								name = value;
+							} else if (nodeName.equalsIgnoreCase("workerpool")) {
+								workerPoolConfig = readWorkerPoolConfig(ele);
+							} else if (nodeName.equalsIgnoreCase("uselengthprepender")
+									|| nodeName.equalsIgnoreCase("usinglengthprepender")
+									|| nodeName.equalsIgnoreCase("prependlength")) {
+								isUserLengprepender = Boolean.valueOf(value);
+							} else if (nodeName.equalsIgnoreCase("bootGroupThreads")) {
+								bootGroupThreads = Integer.valueOf(value);
+							} else if (nodeName.equalsIgnoreCase("workerGroupThreads")) {
+								workerGroupThreads = Integer.valueOf(value);
+							}
+						}
+						ele = ele.getNextSibling();
+					}
+					SocketGatewayConfig socketGatewayConfig;
+					if (protocol == SocketProtocol.WEBSOCKET) {
+						WebsocketGatewayConfig websocketGatewayConfig = new WebsocketGatewayConfig();
+						socketGatewayConfig = websocketGatewayConfig;
+					} else {
+						socketGatewayConfig = new SocketGatewayConfig();
+					}
+
 					Node refAttr = item.getAttributes().getNamedItem("ref");
 					if (refAttr != null) {
 						String ref = refAttr.getNodeValue();
@@ -741,38 +874,39 @@ class ExtensionConfigReader extends XmlConfigReader {
 							socketGatewayConfig.readPuObject(refObj);
 						}
 					}
-					ele = item.getFirstChild();
-					while (ele != null) {
-						if (ele.getNodeType() == 1) {
-							String nodeName = ele.getNodeName();
-							String value = ele.getTextContent().trim();
-							if (nodeName.equalsIgnoreCase("protocol")) {
-								socketGatewayConfig.setProtocol(SocketProtocol.fromName(value));
-							} else if (nodeName.equalsIgnoreCase("host")) {
-								socketGatewayConfig.setHost(value);
-							} else if (nodeName.equalsIgnoreCase("port")) {
-								socketGatewayConfig.setPort(Integer.valueOf(value));
-							} else if (nodeName.equalsIgnoreCase("deserializer")) {
-								socketGatewayConfig.setDeserializerClassName(value);
-							} else if (nodeName.equalsIgnoreCase("serializer")) {
-								socketGatewayConfig.setSerializerClassName(value);
-							} else if (nodeName.equalsIgnoreCase("name")) {
-								socketGatewayConfig.setName(value);
-							} else if (nodeName.equalsIgnoreCase("workerpool")) {
-								socketGatewayConfig.setWorkerPoolConfig(readWorkerPoolConfig(ele));
-							} else if (nodeName.equalsIgnoreCase("uselengthprepender")
-									|| nodeName.equalsIgnoreCase("usinglengthprepender")
-									|| nodeName.equalsIgnoreCase("prependlength")) {
-								socketGatewayConfig.setUseLengthPrepender(Boolean.valueOf(value));
-							} else if (nodeName.equalsIgnoreCase("bootGroupThreads")) {
-								socketGatewayConfig.setBootEventLoopGroupThreads(Integer.valueOf(value));
-							} else if (nodeName.equalsIgnoreCase("workerGroupThreads")) {
-								socketGatewayConfig.setWorkerEventLoopGroupThreads(Integer.valueOf(value));
-							}
-						}
-						ele = ele.getNextSibling();
+
+					if (port > 0) {
+						socketGatewayConfig.setPort(port);
+					} else {
+						throw new IllegalArgumentException("Socket gateway's port cannot be <= 0");
 					}
+
+					if (path != null && socketGatewayConfig instanceof WebsocketGatewayConfig) {
+						((WebsocketGatewayConfig) socketGatewayConfig).setPath(path);
+					}
+
+					if (proxy != null && socketGatewayConfig instanceof WebsocketGatewayConfig) {
+						((WebsocketGatewayConfig) socketGatewayConfig).setProxy(proxy);
+					}
+
+					socketGatewayConfig.setName(name);
+					socketGatewayConfig.setHost(host);
+					socketGatewayConfig.setProtocol(protocol);
+					socketGatewayConfig.setSsl(ssl);
+					socketGatewayConfig.setSslContextName(sslContextName);
+					socketGatewayConfig.setSerializerClassName(serializer);
+					socketGatewayConfig.setDeserializerClassName(deserializer);
+					socketGatewayConfig.setUseLengthPrepender(isUserLengprepender);
+					socketGatewayConfig.setWorkerPoolConfig(workerPoolConfig);
+					if (workerGroupThreads > 0) {
+						socketGatewayConfig.setWorkerEventLoopGroupThreads(workerGroupThreads);
+					}
+					if (bootGroupThreads > 0) {
+						socketGatewayConfig.setBootEventLoopGroupThreads(bootGroupThreads);
+					}
+
 					config = socketGatewayConfig;
+
 					break;
 				}
 				default:
@@ -1344,6 +1478,10 @@ class ExtensionConfigReader extends XmlConfigReader {
 
 	public Collection<? extends ZkClientConfig> getZkClientConfigs() {
 		return this.zkClientConfigs;
+	}
+
+	public Collection<? extends SSLContextConfig> getSSLContextConfigs() {
+		return this.sslContextConfigs;
 	}
 
 	public PuObjectRO getProperty(String name) {
